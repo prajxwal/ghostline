@@ -11,14 +11,11 @@ export default function LandingScreen() {
 
     const handleCreateRoom = () => {
         const code = generateRoomCode();
-        // If no password, we generate a random key. Otherwise we use the password for encryption.
         let randomKey = '';
         if (!password) {
             randomKey = generateRandomKey();
         }
 
-        // We pass params. We can use Expo Router's standard parameters.
-        // For extreme privacy, `#key=...` is best, but since it's an app, React Navigation params are totally local and in-memory.
         router.push({
             pathname: '/chat',
             params: {
@@ -49,17 +46,21 @@ export default function LandingScreen() {
         >
             <ScrollView contentContainerStyle={styles.scroll}>
                 <View style={styles.hero}>
-                    <Text style={styles.title}>👻 Ghostline</Text>
+                    <Text style={styles.asciiArt}>
+                        {`  .-\\-.\n (o o)\n | O \\\n  \\   \\\n   \`~~~'`}
+                    </Text>
+                    <Text style={styles.title}>GHOSTLINE_</Text>
                     <Text style={styles.subtitle}>
-                        Truly anonymous chat. No signup. No logs. No traces. Just chat.
+                        TRULY_ANONYMOUS_CHAT.{"\n"}
+                        NO_SIGNUP. NO_LOGS. JUST_CHAT.
                     </Text>
                 </View>
 
                 <View style={styles.card}>
-                    <Text style={styles.cardTitle}>Join a Room</Text>
+                    <Text style={styles.cardTitle}>[ JOIN_ROOM ]</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Room Code (e.g. X7K2M9)"
+                        placeholder="ACCESS_CODE"
                         placeholderTextColor={theme.colors.textMuted}
                         value={joinCode}
                         onChangeText={setJoinCode}
@@ -67,35 +68,35 @@ export default function LandingScreen() {
                     />
                     <TextInput
                         style={styles.input}
-                        placeholder="Password (Optional)"
+                        placeholder="PASSWORD (OPTIONAL)"
                         placeholderTextColor={theme.colors.textMuted}
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry
                     />
                     <TouchableOpacity style={styles.button} onPress={handleJoinRoom}>
-                        <Text style={styles.buttonText}>Join Room</Text>
+                        <Text style={styles.buttonText}>&gt; INITIATE_JOIN</Text>
                     </TouchableOpacity>
                 </View>
 
                 <View style={styles.divider}>
                     <View style={styles.line} />
-                    <Text style={styles.or}>OR</Text>
+                    <Text style={styles.or}>// OR</Text>
                     <View style={styles.line} />
                 </View>
 
                 <View style={styles.card}>
-                    <Text style={styles.cardTitle}>Create a Room</Text>
+                    <Text style={styles.cardTitle}>[ CREATE_ROOM ]</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Set a Password (Optional)"
+                        placeholder="SET_PASSWORD (OPTIONAL)"
                         placeholderTextColor={theme.colors.textMuted}
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry
                     />
                     <TouchableOpacity style={[styles.button, styles.buttonOutline]} onPress={handleCreateRoom}>
-                        <Text style={styles.buttonOutlineText}>Create Room</Text>
+                        <Text style={styles.buttonOutlineText}>&gt; INITIATE_CREATE</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -117,20 +118,34 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: theme.spacing.xl,
     },
+    asciiArt: {
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 24,
+        marginBottom: theme.spacing.sm,
+        textShadowColor: theme.colors.accentGlow,
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 8,
+    },
     title: {
         fontSize: theme.typography.h1.fontSize,
         fontWeight: theme.typography.h1.fontWeight,
-        color: theme.colors.accentGlow,
+        fontFamily: theme.typography.h1.fontFamily,
+        color: theme.colors.accent,
         marginBottom: theme.spacing.sm,
+        textShadowColor: theme.colors.accentGlow,
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 10,
     },
     subtitle: {
         fontSize: theme.typography.body.fontSize,
+        fontFamily: theme.typography.body.fontFamily,
         color: theme.colors.textMuted,
         textAlign: 'center',
         paddingHorizontal: theme.spacing.lg,
     },
     card: {
-        backgroundColor: theme.colors.bgCard,
+        backgroundColor: theme.colors.bgSecondary,
         padding: theme.spacing.lg,
         borderRadius: theme.borderRadius.lg,
         borderWidth: 1,
@@ -140,37 +155,42 @@ const styles = StyleSheet.create({
     cardTitle: {
         fontSize: theme.typography.h2.fontSize,
         fontWeight: theme.typography.h2.fontWeight,
+        fontFamily: theme.typography.h2.fontFamily,
         color: theme.colors.textPrimary,
         marginBottom: theme.spacing.md,
     },
     input: {
-        backgroundColor: theme.colors.bgSecondary,
+        backgroundColor: theme.colors.bgPrimary,
         borderWidth: 1,
         borderColor: theme.colors.border,
         borderRadius: theme.borderRadius.md,
         padding: theme.spacing.md,
         color: theme.colors.textPrimary,
-        fontSize: 16,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 14,
         marginBottom: theme.spacing.md,
     },
     button: {
-        backgroundColor: theme.colors.accent,
+        backgroundColor: theme.colors.bgCard,
         padding: theme.spacing.md,
         borderRadius: theme.borderRadius.md,
+        borderWidth: 1,
+        borderColor: theme.colors.accent,
         alignItems: 'center',
     },
     buttonText: {
-        color: '#fff',
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
         fontSize: 16,
         fontWeight: '600',
     },
     buttonOutline: {
         backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: theme.colors.accent,
+        borderStyle: 'dashed',
     },
     buttonOutlineText: {
         color: theme.colors.accentGlow,
+        fontFamily: theme.typography.fontFamilyMono,
         fontSize: 16,
         fontWeight: '600',
     },
@@ -186,6 +206,7 @@ const styles = StyleSheet.create({
     },
     or: {
         color: theme.colors.textMuted,
+        fontFamily: theme.typography.fontFamilyMono,
         marginHorizontal: theme.spacing.md,
         fontWeight: '600',
     }

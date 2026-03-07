@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
     StyleSheet, Text, View, TextInput, TouchableOpacity,
-    KeyboardAvoidingView, Platform, FlatList, Keyboard,
-    ActivityIndicator, Alert, Clipboard
+    KeyboardAvoidingView, Platform, FlatList, ActivityIndicator, Alert
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { theme } from '../styles/theme';
@@ -24,38 +23,30 @@ export default function ChatScreen() {
     const flatListRef = useRef(null);
 
     useEffect(() => {
-        // 1. Setup Crypto Key asynchronously (since PBKDF2 can be CPU intensive)
         const setupKey = async () => {
             try {
                 if (password) {
-                    // Both use the same password -> same derived key
                     const derived = deriveKey(password, roomId);
                     setCryptoKey(derived);
                 } else if (randomKey) {
-                    // The creator passed a random key. We use it directly.
                     const parsed = parseRandomKey(randomKey);
                     setCryptoKey(parsed);
                 } else {
-                    // They joined without a password. In a real app they'd need the #key via link,
-                    // but since this is an MVP we'd need them to share the key manually.
-                    // For simplicity if joining without password, we assume it's just a blank password key derivation 
-                    // or we handle this error. If randomKey is missing, we derive from empty string.
                     const derived = deriveKey('', roomId);
                     setCryptoKey(derived);
                 }
             } catch (err) {
-                Alert.alert('Crypto Error', 'Failed to derive encryption keys.');
+                Alert.alert('CRYPTO_ERR', 'FAILED_TO_DERIVE_KEYS');
             }
         };
         setupKey();
 
-        // 2. Setup Sockets
         socketService.connect();
 
         if (isCreator === '1') {
             socketService.createRoom(roomId, !!password, (res) => {
                 if (res.error) {
-                    Alert.alert('Error', res.error);
+                    Alert.alert('ERR', res.error);
                     router.replace('/');
                     return;
                 }
@@ -66,7 +57,7 @@ export default function ChatScreen() {
         } else {
             socketService.joinRoom(roomId, (res) => {
                 if (res.error) {
-                    Alert.alert('Error', res.error);
+                    Alert.alert('ERR', res.error);
                     router.replace('/');
                     return;
                 }
@@ -76,17 +67,17 @@ export default function ChatScreen() {
 
         socketService.onUserJoined(() => {
             setUserCount(c => c + 1);
-            addSystemMessage('A ghost joined the room.');
+            addSystemMessage('NODE_CONNECTED');
         });
 
         socketService.onUserLeft(() => {
             setUserCount(c => Math.max(1, c - 1));
-            addSystemMessage('A ghost vanished.');
+            addSystemMessage('NODE_DISCONNECTED');
         });
 
         socketService.onMessage((encryptedPayload) => {
             setSomeoneTyping(false);
-            if (!cryptoKey) return; // Not ready
+            if (!cryptoKey) return;
 
             const { iv, cipher, sender, timestamp } = encryptedPayload;
             const dec = decryptMessage(iv, cipher, cryptoKey);
@@ -105,7 +96,6 @@ export default function ChatScreen() {
         });
 
         return () => {
-            // Ephemeral by design: Cleanup when leaving
             socketService.offAll();
             socketService.disconnect();
         };
@@ -126,7 +116,6 @@ export default function ChatScreen() {
         const plainText = inputText.trim();
         const ts = new Date().toISOString();
 
-        // Encrypt
         const { iv, cipher } = encryptMessage(plainText, cryptoKey);
 
         const payload = {
@@ -138,7 +127,6 @@ export default function ChatScreen() {
 
         socketService.sendMessage(payload);
 
-        // Add to local UI
         setMessages(prev => [...prev, {
             id: Math.random().toString(),
             text: plainText,
@@ -170,16 +158,18 @@ export default function ChatScreen() {
         if (item.isSystem) {
             return (
                 <View style={styles.systemMessageContainer}>
-                    <Text style={styles.systemMessage}>{item.text}</Text>
+                    <Text style={styles.systemMessage}>[SYS_WARN]: {item.text}</Text>
                 </View>
             );
         }
 
         return (
             <View style={[styles.messageWrapper, item.isOwn ? styles.messageOwnWrapper : {}]}>
-                {!item.isOwn && <Text style={styles.senderAlias}>{item.sender}</Text>}
+                {!item.isOwn && <Text style={styles.senderAlias}>&lt;{item.sender}&gt;</Text>}
                 <View style={[styles.messageBubble, item.isOwn ? styles.messageOwn : styles.messageOther]}>
-                    <Text style={styles.messageText}>{item.text}</Text>
+                    <Text style={styles.messageText}>
+                        {item.isOwn ? '> ' : ''}{item.text}
+                    </Text>
                 </View>
                 <Text style={styles.messageTime}>{formatTime(item.timestamp)}</Text>
             </View>
@@ -190,7 +180,7 @@ export default function ChatScreen() {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={theme.colors.accent} />
-                <Text style={styles.loadingText}>Deriving Keys & Establishing Secure Tunnel...</Text>
+                <Text style={styles.loadingText}>[ INITIATING_SECURE_HANDSHAKE... ]</Text>
             </View>
         );
     }
@@ -203,14 +193,14 @@ export default function ChatScreen() {
         >
             <View style={styles.header}>
                 <View>
-                    <Text style={styles.roomCode}>Room: {roomId}</Text>
-                    <Text style={styles.userCount}>{userCount} Ghost(s) connected</Text>
+                    <Text style={styles.roomCode}>TARGET_NODE: {roomId}</Text>
+                    <Text style={styles.userCount}>ACTIVE_CONNECTIONS: {userCount}</Text>
                 </View>
                 <TouchableOpacity
                     style={styles.leaveBtn}
                     onPress={() => router.replace('/')}
                 >
-                    <Text style={styles.leaveText}>Vanish</Text>
+                    <Text style={styles.leaveText}>[ ABORT ]</Text>
                 </TouchableOpacity>
             </View>
 
@@ -226,14 +216,15 @@ export default function ChatScreen() {
 
             {someoneTyping && (
                 <View style={styles.typingIndicator}>
-                    <Text style={styles.typingText}>Someone is typing...</Text>
+                    <Text style={styles.typingText}>Incoming transmission...</Text>
                 </View>
             )}
 
             <View style={styles.inputContainer}>
+                <Text style={styles.prompt}>~/&gt;</Text>
                 <TextInput
                     style={styles.input}
-                    placeholder="Whisper into the void..."
+                    placeholder="_"
                     placeholderTextColor={theme.colors.textMuted}
                     value={inputText}
                     onChangeText={(text) => {
@@ -247,7 +238,7 @@ export default function ChatScreen() {
                     onPress={handleSend}
                     disabled={!inputText.trim()}
                 >
-                    <Text style={styles.sendText}>Send</Text>
+                    <Text style={styles.sendText}>EXEC</Text>
                 </TouchableOpacity>
             </View>
         </KeyboardAvoidingView>
@@ -267,7 +258,8 @@ const styles = StyleSheet.create({
     },
     loadingText: {
         marginTop: 20,
-        color: theme.colors.textMuted,
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
     },
     header: {
         flexDirection: 'row',
@@ -279,26 +271,30 @@ const styles = StyleSheet.create({
         borderBottomColor: theme.colors.border,
     },
     roomCode: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '700',
         color: theme.colors.accentGlow,
+        fontFamily: theme.typography.fontFamilyMono,
     },
     userCount: {
         fontSize: 12,
         color: theme.colors.textMuted,
         marginTop: 2,
+        fontFamily: theme.typography.fontFamilyMono,
     },
     leaveBtn: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
         borderWidth: 1,
         borderColor: theme.colors.danger,
         borderRadius: theme.borderRadius.sm,
+        backgroundColor: theme.colors.bgPrimary,
     },
     leaveText: {
         color: theme.colors.danger,
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: '600',
+        fontFamily: theme.typography.fontFamilyMono,
     },
     chatContainer: {
         padding: theme.spacing.md,
@@ -306,21 +302,17 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     systemMessageContainer: {
-        alignItems: 'center',
+        alignItems: 'flex-start',
         marginVertical: 10,
     },
     systemMessage: {
-        backgroundColor: theme.colors.bgSecondary,
-        color: theme.colors.textMuted,
+        color: '#ffaa00', // Warning yellow/orange for sys
         fontSize: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 12,
-        overflow: 'hidden',
+        fontFamily: theme.typography.fontFamilyMono,
     },
     messageWrapper: {
         marginBottom: 16,
-        maxWidth: '85%',
+        maxWidth: '90%',
         alignSelf: 'flex-start',
     },
     messageOwnWrapper: {
@@ -330,31 +322,33 @@ const styles = StyleSheet.create({
     senderAlias: {
         fontSize: 10,
         color: theme.colors.textMuted,
-        marginBottom: 4,
-        marginLeft: 4,
+        marginBottom: 2,
+        marginLeft: 2,
+        fontFamily: theme.typography.fontFamilyMono,
     },
     messageBubble: {
-        padding: 12,
-        borderRadius: theme.borderRadius.lg,
+        padding: 8,
+        borderRadius: theme.borderRadius.sm,
+        borderWidth: 1,
     },
     messageOwn: {
-        backgroundColor: theme.colors.accent,
-        borderBottomRightRadius: 4,
+        backgroundColor: 'transparent',
+        borderColor: theme.colors.accent,
     },
     messageOther: {
-        backgroundColor: theme.colors.bgCard,
-        borderBottomLeftRadius: 4,
-        borderWidth: 1,
+        backgroundColor: theme.colors.bgSecondary,
         borderColor: theme.colors.border,
     },
     messageText: {
-        color: '#fff',
-        fontSize: 16,
+        color: theme.colors.textPrimary,
+        fontSize: 14,
+        fontFamily: theme.typography.fontFamilyMono,
     },
     messageTime: {
         fontSize: 10,
         color: theme.colors.textMuted,
         marginTop: 4,
+        fontFamily: theme.typography.fontFamilyMono,
     },
     typingIndicator: {
         paddingHorizontal: theme.spacing.md,
@@ -362,8 +356,8 @@ const styles = StyleSheet.create({
     },
     typingText: {
         color: theme.colors.accentGlow,
-        fontSize: 12,
-        fontStyle: 'italic',
+        fontSize: 10,
+        fontFamily: theme.typography.fontFamilyMono,
     },
     inputContainer: {
         flexDirection: 'row',
@@ -371,34 +365,41 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.bgSecondary,
         borderTopWidth: 1,
         borderTopColor: theme.colors.border,
-        alignItems: 'flex-end',
+        alignItems: 'center',
+    },
+    prompt: {
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 16,
+        marginRight: 8,
     },
     input: {
         flex: 1,
-        backgroundColor: theme.colors.bgPrimary,
-        color: '#fff',
-        borderRadius: 20,
-        paddingHorizontal: 16,
-        paddingTop: 12,
-        paddingBottom: 12,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        backgroundColor: 'transparent',
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 16,
+        paddingVertical: 8,
         maxHeight: 100,
     },
     sendBtn: {
         marginLeft: 12,
-        backgroundColor: theme.colors.accent,
-        borderRadius: 20,
-        paddingHorizontal: 20,
-        paddingVertical: 12,
+        backgroundColor: theme.colors.bgCard,
+        borderWidth: 1,
+        borderColor: theme.colors.accent,
+        borderRadius: theme.borderRadius.md,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
         justifyContent: 'center',
         alignItems: 'center',
     },
     sendBtnDisabled: {
-        backgroundColor: theme.colors.bgCard,
+        borderColor: theme.colors.border,
+        opacity: 0.5,
     },
     sendText: {
-        color: '#fff',
+        color: theme.colors.accent,
         fontWeight: '600',
+        fontFamily: theme.typography.fontFamilyMono,
     }
 });
