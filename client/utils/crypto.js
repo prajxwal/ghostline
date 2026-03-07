@@ -1,7 +1,7 @@
 import 'react-native-get-random-values';
-import { gcm } from '@noble/ciphers/aes';
-import { pbkdf2 } from '@noble/hashes/pbkdf2';
-import { sha256 } from '@noble/hashes/sha256';
+import { gcm } from '@noble/ciphers/aes.js';
+import { pbkdf2 } from '@noble/hashes/pbkdf2.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 // noble/ciphers returns functions, no need to instantiate Classes out of nothing
 // It works perfectly without async/await native WebCrypto bounds
