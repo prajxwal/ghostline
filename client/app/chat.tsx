@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
     StyleSheet, Text, View, TextInput, TouchableOpacity,
-    KeyboardAvoidingView, Platform, FlatList, ActivityIndicator, Alert
+    KeyboardAvoidingView, Platform, FlatList, ActivityIndicator, Alert, Modal
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { theme } from '../styles/theme';
@@ -13,7 +13,9 @@ export default function ChatScreen() {
     const { roomId, password, isCreator, randomKey } = useLocalSearchParams();
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
-    const [alias] = useState(() => generateAlias());
+    const [alias, setAlias] = useState('');
+    const [tempAlias, setTempAlias] = useState('');
+    const [showAliasModal, setShowAliasModal] = useState(true);
     const [cryptoKey, setCryptoKey] = useState(null);
     const [userCount, setUserCount] = useState(1);
     const [isTyping, setIsTyping] = useState(false);
@@ -24,6 +26,8 @@ export default function ChatScreen() {
 
     useEffect(() => {
         const setupKey = async () => {
+            // Give UI a moment to show loading state before blocking thread
+            await new Promise(resolve => setTimeout(resolve, 10));
             try {
                 if (password) {
                     const derived = deriveKey(password, roomId);
@@ -40,28 +44,33 @@ export default function ChatScreen() {
             }
         };
         setupKey();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [roomId, password, randomKey]);
+
+    useEffect(() => {
+        if (!cryptoKey) return;
 
         socketService.connect();
 
         if (isCreator === '1') {
             socketService.createRoom(roomId, !!password, (res) => {
-                if (res.error) {
+                if (res?.error) {
                     Alert.alert('ERR', res.error);
                     router.replace('/');
                     return;
                 }
                 socketService.joinRoom(roomId, (joinRes) => {
-                    if (joinRes.success) setUserCount(joinRes.userCount);
+                    if (joinRes?.success) setUserCount(joinRes.userCount);
                 });
             });
         } else {
             socketService.joinRoom(roomId, (res) => {
-                if (res.error) {
+                if (res?.error) {
                     Alert.alert('ERR', res.error);
                     router.replace('/');
                     return;
                 }
-                setUserCount(res.userCount);
+                setUserCount(res?.userCount || 1);
             });
         }
 
@@ -100,7 +109,7 @@ export default function ChatScreen() {
             socketService.disconnect();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomId, cryptoKey]);
+    }, [roomId, isCreator, cryptoKey]);
 
     const addSystemMessage = (text) => {
         setMessages(prev => [...prev, {
@@ -176,6 +185,15 @@ export default function ChatScreen() {
         );
     };
 
+    const handleSetAlias = () => {
+        if (tempAlias.trim().length > 0) {
+            setAlias(tempAlias.trim());
+        } else {
+            setAlias(generateAlias());
+        }
+        setShowAliasModal(false);
+    };
+
     if (!cryptoKey) {
         return (
             <View style={styles.loadingContainer}>
@@ -191,6 +209,33 @@ export default function ChatScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
+            <Modal visible={showAliasModal} animationType="fade" transparent>
+                <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>IDENTIFY_YOURSELF</Text>
+                        <Text style={styles.modalSub}>Leave blank for random assignment.</Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            placeholder="anon_"
+                            placeholderTextColor={theme.colors.textMuted}
+                            value={tempAlias}
+                            onChangeText={setTempAlias}
+                            autoFocus
+                            maxLength={15}
+                            onSubmitEditing={handleSetAlias}
+                        />
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity style={styles.modalActionBtn} onPress={() => router.replace('/')}>
+                                <Text style={styles.leaveText}>[ ABORT ]</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.modalActionBtn} onPress={handleSetAlias}>
+                                <Text style={styles.modalBtnText}>[ ENTER_NODE ]</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
+
             <View style={styles.header}>
                 <View>
                     <Text style={styles.roomCode}>TARGET_NODE: {roomId}</Text>
@@ -401,5 +446,61 @@ const styles = StyleSheet.create({
         color: theme.colors.accent,
         fontWeight: '600',
         fontFamily: theme.typography.fontFamilyMono,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: theme.spacing.lg,
+    },
+    modalContent: {
+        backgroundColor: theme.colors.bgSecondary,
+        borderWidth: 1,
+        borderColor: theme.colors.accent,
+        padding: theme.spacing.lg,
+        width: '100%',
+        maxWidth: 400,
+        alignItems: 'center',
+    },
+    modalTitle: {
+        color: theme.colors.accentGlow,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginBottom: 8,
+    },
+    modalSub: {
+        color: theme.colors.textMuted,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 12,
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    modalInput: {
+        width: '100%',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
+        padding: 12,
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    modalActions: {
+        flexDirection: 'row',
+        width: '100%',
+        justifyContent: 'space-between',
+    },
+    modalActionBtn: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    modalBtnText: {
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontWeight: 'bold',
     }
 });
