@@ -24,18 +24,19 @@ function bytesToStr(bytes) {
     return str;
 }
 
-function base64ToBytes(base64) {
-    const binary_string = atob(base64);
-    const len = binary_string.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binary_string.charCodeAt(i);
+function base64ToBytes(hexString) {
+    if (hexString.length % 2 !== 0) throw new Error('Invalid hex string');
+    const array = new Uint8Array(hexString.length / 2);
+    for (let i = 0; i < hexString.length; i += 2) {
+        array[i / 2] = parseInt(hexString.substring(i, i + 2), 16);
     }
-    return bytes;
+    return array;
 }
 
 function bytesToBase64(bytes) {
-    return btoa(bytesToStr(bytes));
+    return Array.from(bytes)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
 }
 
 /**

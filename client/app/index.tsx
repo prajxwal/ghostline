@@ -10,33 +10,41 @@ export default function LandingScreen() {
     const [password, setPassword] = useState('');
 
     const handleCreateRoom = () => {
-        const code = generateRoomCode();
-        let randomKey = '';
-        if (!password) {
-            randomKey = generateRandomKey();
-        }
-
-        router.push({
-            pathname: '/chat',
-            params: {
-                roomId: code,
-                password: password,
-                isCreator: '1',
-                randomKey: randomKey
+        try {
+            const code = generateRoomCode();
+            let randomKey = '';
+            if (!password) {
+                randomKey = generateRandomKey();
             }
-        });
+
+            router.push({
+                pathname: '/chat',
+                params: {
+                    roomId: code,
+                    password: password,
+                    isCreator: '1',
+                    randomKey: randomKey
+                }
+            });
+        } catch (err) {
+            alert(`[SYS_ERR]: FAILED_TO_CREATE_ROOM - ${(err as Error).message}`);
+        }
     };
 
     const handleJoinRoom = () => {
-        if (!joinCode.trim()) return;
-        router.push({
-            pathname: '/chat',
-            params: {
-                roomId: joinCode.toUpperCase().trim(),
-                password: password,
-                isCreator: '0'
-            }
-        });
+        try {
+            if (!joinCode.trim()) return;
+            router.push({
+                pathname: '/chat',
+                params: {
+                    roomId: joinCode.toUpperCase().trim(),
+                    password: password,
+                    isCreator: '0'
+                }
+            });
+        } catch (err) {
+            alert(`[SYS_ERR]: FAILED_TO_JOIN_ROOM - ${(err as Error).message}`);
+        }
     };
 
     return (
