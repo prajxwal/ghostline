@@ -1,4 +1,4 @@
-const { createRoom, joinRoom, leaveRoom, getRoomUserCount, roomExists } = require('./rooms');
+const { createRoom, joinRoom, leaveRoom, getRoomUserCount, roomExists, nukeRoom } = require('./rooms');
 const { v4: uuidv4 } = require('uuid');
 
 module.exports = (io) => {
@@ -12,7 +12,7 @@ module.exports = (io) => {
 
         socket.on('create-room', ({ roomId, hasPassword }, callback) => {
             if (!roomId) return callback({ error: 'Room ID required' });
-            const success = createRoom(roomId, hasPassword);
+            const success = createRoom(roomId, userId, hasPassword);
             if (success) {
                 callback({ success: true });
             } else {
@@ -52,6 +52,21 @@ module.exports = (io) => {
             const roomId = socket.data.roomId;
             if (roomId) {
                 socket.to(roomId).emit('typing', { isTyping });
+            }
+        });
+
+        socket.on('nuke-room', (callback) => {
+            const roomId = socket.data.roomId;
+            if (roomId) {
+                const success = nukeRoom(roomId, userId);
+                if (success) {
+                    io.in(roomId).emit('room-nuked');
+                    if (typeof callback === 'function') callback({ success: true });
+                } else {
+                    if (typeof callback === 'function') callback({ error: 'Not authorized or room not found' });
+                }
+            } else {
+                if (typeof callback === 'function') callback({ error: 'Not in a room' });
             }
         });
 

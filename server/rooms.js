@@ -4,11 +4,12 @@ const rooms = new Map();
 // 24 hr expiration for inactive rooms
 const ROOM_TIMEOUT = 24 * 60 * 60 * 1000;
 
-function createRoom(roomId, hasPassword = false) {
+function createRoom(roomId, creatorId, hasPassword = false) {
     if (rooms.has(roomId)) {
         return false; // Already exists
     }
     rooms.set(roomId, {
+        creatorId: creatorId,
         users: new Set(),
         createdAt: Date.now(),
         lastActive: Date.now(),
@@ -49,6 +50,20 @@ function roomExists(roomId) {
     return rooms.has(roomId);
 }
 
+function nukeRoom(roomId, userId) {
+    const room = rooms.get(roomId);
+    if (!room) return false;
+
+    // Check if the user is the creator
+    if (room.creatorId && room.creatorId !== userId) {
+        return false;
+    }
+
+    rooms.delete(roomId);
+    console.log(`Room ${roomId} NUKED by ${userId}`);
+    return true;
+}
+
 // Cleanup stale rooms periodically
 setInterval(() => {
     const now = Date.now();
@@ -65,5 +80,6 @@ module.exports = {
     joinRoom,
     leaveRoom,
     getRoomUserCount,
-    roomExists
+    roomExists,
+    nukeRoom
 };

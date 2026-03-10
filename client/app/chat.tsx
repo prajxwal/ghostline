@@ -104,6 +104,11 @@ export default function ChatScreen() {
             setSomeoneTyping(isTyping);
         });
 
+        socketService.onRoomNuked(() => {
+            Alert.alert('ROOM_NUKED', 'The creator has completely destroyed this room. All connections severed.');
+            router.replace('/');
+        });
+
         return () => {
             socketService.offAll();
             socketService.disconnect();
@@ -241,12 +246,37 @@ export default function ChatScreen() {
                     <Text style={styles.roomCode}>TARGET_NODE: {roomId}</Text>
                     <Text style={styles.userCount}>ACTIVE_CONNECTIONS: {userCount}</Text>
                 </View>
-                <TouchableOpacity
-                    style={styles.leaveBtn}
-                    onPress={() => router.replace('/')}
-                >
-                    <Text style={styles.leaveText}>[ ABORT ]</Text>
-                </TouchableOpacity>
+                <View style={styles.headerRight}>
+                    {isCreator === '1' && (
+                        <TouchableOpacity
+                            style={[styles.leaveBtn, styles.nukeBtn]}
+                            onPress={() => {
+                                Alert.alert(
+                                    'CONFIRM_NUKE',
+                                    'Are you sure you want to completely destroy this room? This action cannot be reversed.',
+                                    [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        {
+                                            text: 'NUKE', style: 'destructive', onPress: () => {
+                                                socketService.nukeRoom((res: any) => {
+                                                    if (res?.error) Alert.alert('ERR', res.error);
+                                                });
+                                            }
+                                        }
+                                    ]
+                                );
+                            }}
+                        >
+                            <Text style={[styles.leaveText, styles.nukeText]}>[ NUKE ]</Text>
+                        </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                        style={styles.leaveBtn}
+                        onPress={() => router.replace('/')}
+                    >
+                        <Text style={styles.leaveText}>[ ABORT ]</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <FlatList
@@ -502,5 +532,16 @@ const styles = StyleSheet.create({
         color: theme.colors.accent,
         fontFamily: theme.typography.fontFamilyMono,
         fontWeight: 'bold',
+    },
+    headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    nukeBtn: {
+        borderColor: '#ffaa00',
+        marginRight: 8,
+    },
+    nukeText: {
+        color: '#ffaa00',
     }
 });

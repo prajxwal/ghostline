@@ -65,11 +65,20 @@ class SocketService {
         this.socket?.on('user-left', callback);
     }
 
+    nukeRoom(callback) {
+        this.socket?.emit('nuke-room', callback);
+    }
+
+    onRoomNuked(callback) {
+        this.socket?.on('room-nuked', callback);
+    }
+
     offAll() {
         this.socket?.off('chat-message');
         this.socket?.off('typing');
         this.socket?.off('user-joined');
         this.socket?.off('user-left');
+        this.socket?.off('room-nuked');
     }
 }
 
