@@ -6,25 +6,20 @@ import { sha256 } from '@noble/hashes/sha2.js';
 // noble/ciphers returns functions, no need to instantiate Classes out of nothing
 // It works perfectly without async/await native WebCrypto bounds
 
-// Encode string to Uint8Array
+// Encode string to Uint8Array (full UTF-8 support)
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
 function strToBytes(str) {
-    const bytes = new Uint8Array(str.length);
-    for (let i = 0; i < str.length; i++) {
-        bytes[i] = str.charCodeAt(i); // Assuming UTF-8 base for simple chat
-    }
-    return bytes;
+    return encoder.encode(str);
 }
 
-// Byte array to Latin1 string (for base64 encoding later or direct passage)
+// Byte array to string (full UTF-8 support)
 function bytesToStr(bytes) {
-    let str = '';
-    for (let i = 0; i < bytes.length; i++) {
-        str += String.fromCharCode(bytes[i]);
-    }
-    return str;
+    return decoder.decode(bytes);
 }
 
-function base64ToBytes(hexString) {
+function hexToBytes(hexString) {
     if (hexString.length % 2 !== 0) throw new Error('Invalid hex string');
     const array = new Uint8Array(hexString.length / 2);
     for (let i = 0; i < hexString.length; i += 2) {
@@ -33,7 +28,7 @@ function base64ToBytes(hexString) {
     return array;
 }
 
-function bytesToBase64(bytes) {
+function bytesToHex(bytes) {
     return Array.from(bytes)
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
@@ -66,30 +61,30 @@ export function encryptMessage(text, key, sender) {
     const aesGcm = gcm(key, iv);
     const plaintextBytes = strToBytes(text);
     const aadBytes = strToBytes(sender);
-    const ciphertextBytes = aesGcm.encrypt(plaintextBytes, { AAD: aadBytes });
+    const ciphertextBytes = aesGcm.encrypt(plaintextBytes, aadBytes);
 
     return {
-        iv: bytesToBase64(iv),
-        cipher: bytesToBase64(ciphertextBytes)
+        iv: bytesToHex(iv),
+        cipher: bytesToHex(ciphertextBytes)
     };
 }
 
 /**
  * Decrypts a message
- * @param {string} ivBase64 
- * @param {string} cipherBase64 
+ * @param {string} ivHex 
+ * @param {string} cipherHex 
  * @param {Uint8Array} key 
  * @param {string} sender Alias for AAD
  * @returns {string} plaintext message
  */
-export function decryptMessage(ivBase64, cipherBase64, key, sender) {
+export function decryptMessage(ivHex, cipherHex, key, sender) {
     try {
-        const iv = base64ToBytes(ivBase64);
-        const cipherText = base64ToBytes(cipherBase64);
+        const iv = hexToBytes(ivHex);
+        const cipherText = hexToBytes(cipherHex);
         const aesGcm = gcm(key, iv);
         const aadBytes = strToBytes(sender);
 
-        const plainBytes = aesGcm.decrypt(cipherText, { AAD: aadBytes });
+        const plainBytes = aesGcm.decrypt(cipherText, aadBytes);
         return bytesToStr(plainBytes);
     } catch (e) {
         console.error("Decryption failed", e);

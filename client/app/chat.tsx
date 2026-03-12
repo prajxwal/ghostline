@@ -7,7 +7,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { theme } from '../styles/theme';
 import socketService from '../utils/socket';
 import { generateAlias, formatTime } from '../utils/helpers';
-import { deriveKey, parseRandomKey, encryptMessage, decryptMessage } from '../utils/crypto';
+import { deriveKey, encryptMessage, decryptMessage } from '../utils/crypto';
 
 export default function ChatScreen() {
     const { roomId, password, isCreator, sessionId } = useLocalSearchParams();

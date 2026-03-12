@@ -8,7 +8,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default function LandingScreen() {
     const [joinCode, setJoinCode] = null || useState('');
-    const [password, setPassword] = useState('');
+    const [joinPassword, setJoinPassword] = useState('');
+    const [createPassword, setCreatePassword] = useState('');
 
     const handleCreateRoom = () => {
         try {
@@ -19,7 +20,7 @@ export default function LandingScreen() {
                 pathname: '/chat',
                 params: {
                     roomId: code,
-                    password: password,
+                    password: createPassword,
                     isCreator: '1',
                     sessionId: sessionId
                 }
@@ -38,7 +39,7 @@ export default function LandingScreen() {
                 pathname: '/chat',
                 params: {
                     roomId: joinCode.toUpperCase().trim(),
-                    password: password,
+                    password: joinPassword,
                     isCreator: '0',
                     sessionId: sessionId
                 }
@@ -79,8 +80,8 @@ export default function LandingScreen() {
                         style={styles.input}
                         placeholder="PASSWORD (OPTIONAL)"
                         placeholderTextColor={theme.colors.textMuted}
-                        value={password}
-                        onChangeText={setPassword}
+                        value={joinPassword}
+                        onChangeText={setJoinPassword}
                         secureTextEntry
                     />
                     <TouchableOpacity style={styles.button} onPress={handleJoinRoom}>
@@ -100,8 +101,8 @@ export default function LandingScreen() {
                         style={styles.input}
                         placeholder="SET_PASSWORD (OPTIONAL)"
                         placeholderTextColor={theme.colors.textMuted}
-                        value={password}
-                        onChangeText={setPassword}
+                        value={createPassword}
+                        onChangeText={setCreatePassword}
                         secureTextEntry
                     />
                     <TouchableOpacity style={[styles.button, styles.buttonOutline]} onPress={handleCreateRoom}>
