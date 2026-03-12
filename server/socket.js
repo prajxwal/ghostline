@@ -3,12 +3,15 @@ const { v4: uuidv4 } = require('uuid');
 
 module.exports = (io) => {
     io.on('connection', (socket) => {
-        // Assign random ID that is ephemeral to this connection only.
-        // We never tie this to IP or store it persistently.
-        const userId = uuidv4();
+        // Assign persistent ID from client or create ephemeral fallback
+        const userId = socket.handshake.auth?.sessionId || uuidv4();
         socket.data.userId = userId;
 
-        console.log(`Client connected: ephemeral ID assigned.`);
+        // Rate limit state
+        socket.data.lastMessageTime = 0;
+        socket.data.messageCount = 0;
+
+        console.log(`Client connected: user ID assigned.`);
 
         socket.on('create-room', ({ roomId, hasPassword }, callback) => {
             if (!roomId) return callback({ error: 'Room ID required' });
@@ -41,6 +44,19 @@ module.exports = (io) => {
         // We blindly relay the encrypted payload.
         // The server cannot read 'payload'.
         socket.on('chat-message', (payload) => {
+            const now = Date.now();
+            if (now - socket.data.lastMessageTime > 1000) {
+                socket.data.messageCount = 0;
+                socket.data.lastMessageTime = now;
+            }
+            socket.data.messageCount++;
+
+            if (socket.data.messageCount > 5) {
+                console.log(`[SYS_WARN] Rate limit exceeded by ${userId}. Terminating connection.`);
+                socket.disconnect(true);
+                return;
+            }
+
             const roomId = socket.data.roomId;
             if (roomId) {
                 // Broadcast to everyone else in the room

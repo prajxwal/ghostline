@@ -3,7 +3,8 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingVi
 import { router } from 'expo-router';
 import { theme } from '../styles/theme';
 import { generateRoomCode } from '../utils/helpers';
-import { generateRandomKey } from '../utils/crypto';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function LandingScreen() {
     const [joinCode, setJoinCode] = null || useState('');
@@ -12,10 +13,7 @@ export default function LandingScreen() {
     const handleCreateRoom = () => {
         try {
             const code = generateRoomCode();
-            let randomKey = '';
-            if (!password) {
-                randomKey = generateRandomKey();
-            }
+            const sessionId = uuidv4();
 
             router.push({
                 pathname: '/chat',
@@ -23,7 +21,7 @@ export default function LandingScreen() {
                     roomId: code,
                     password: password,
                     isCreator: '1',
-                    randomKey: randomKey
+                    sessionId: sessionId
                 }
             });
         } catch (err) {
@@ -34,12 +32,15 @@ export default function LandingScreen() {
     const handleJoinRoom = () => {
         try {
             if (!joinCode.trim()) return;
+            const sessionId = uuidv4();
+
             router.push({
                 pathname: '/chat',
                 params: {
                     roomId: joinCode.toUpperCase().trim(),
                     password: password,
-                    isCreator: '0'
+                    isCreator: '0',
+                    sessionId: sessionId
                 }
             });
         } catch (err) {

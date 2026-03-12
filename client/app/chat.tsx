@@ -10,7 +10,7 @@ import { generateAlias, formatTime } from '../utils/helpers';
 import { deriveKey, parseRandomKey, encryptMessage, decryptMessage } from '../utils/crypto';
 
 export default function ChatScreen() {
-    const { roomId, password, isCreator, randomKey } = useLocalSearchParams();
+    const { roomId, password, isCreator, sessionId } = useLocalSearchParams();
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
     const [alias, setAlias] = useState('');
@@ -32,9 +32,6 @@ export default function ChatScreen() {
                 if (password) {
                     const derived = deriveKey(password, roomId);
                     setCryptoKey(derived);
-                } else if (randomKey) {
-                    const parsed = parseRandomKey(randomKey);
-                    setCryptoKey(parsed);
                 } else {
                     const derived = deriveKey('', roomId);
                     setCryptoKey(derived);
@@ -45,12 +42,12 @@ export default function ChatScreen() {
         };
         setupKey();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomId, password, randomKey]);
+    }, [roomId, password]);
 
     useEffect(() => {
         if (!cryptoKey) return;
 
-        socketService.connect();
+        socketService.connect(sessionId);
 
         if (isCreator === '1') {
             socketService.createRoom(roomId, !!password, (res) => {
@@ -89,7 +86,7 @@ export default function ChatScreen() {
             if (!cryptoKey) return;
 
             const { iv, cipher, sender, timestamp } = encryptedPayload;
-            const dec = decryptMessage(iv, cipher, cryptoKey);
+            const dec = decryptMessage(iv, cipher, cryptoKey, sender);
 
             setMessages(prev => [...prev, {
                 id: Math.random().toString(),
@@ -130,7 +127,7 @@ export default function ChatScreen() {
         const plainText = inputText.trim();
         const ts = new Date().toISOString();
 
-        const { iv, cipher } = encryptMessage(plainText, cryptoKey);
+        const { iv, cipher } = encryptMessage(plainText, cryptoKey, alias);
 
         const payload = {
             iv,

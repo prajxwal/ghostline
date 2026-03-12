@@ -53,31 +53,20 @@ export function deriveKey(password, roomId) {
 }
 
 /**
- * Generates a completely random 32-byte key
- */
-export function generateRandomKey() {
-    const key = new Uint8Array(32);
-    crypto.getRandomValues(key);
-    return bytesToBase64(key); // Return as string for sharing in #key
-}
-
-export function parseRandomKey(base64Key) {
-    return base64ToBytes(base64Key);
-}
-
-/**
  * Encrypts a message
  * @param {string} text Plaintext message
  * @param {Uint8Array} key 32-byte key
+ * @param {string} sender Alias for AAD
  * @returns {Object} { iv: string, cipher: string } base64 encoded
  */
-export function encryptMessage(text, key) {
+export function encryptMessage(text, key, sender) {
     const iv = new Uint8Array(12); // Standard GCM IV size
     crypto.getRandomValues(iv);
 
     const aesGcm = gcm(key, iv);
     const plaintextBytes = strToBytes(text);
-    const ciphertextBytes = aesGcm.encrypt(plaintextBytes);
+    const aadBytes = strToBytes(sender);
+    const ciphertextBytes = aesGcm.encrypt(plaintextBytes, { AAD: aadBytes });
 
     return {
         iv: bytesToBase64(iv),
@@ -90,15 +79,17 @@ export function encryptMessage(text, key) {
  * @param {string} ivBase64 
  * @param {string} cipherBase64 
  * @param {Uint8Array} key 
+ * @param {string} sender Alias for AAD
  * @returns {string} plaintext message
  */
-export function decryptMessage(ivBase64, cipherBase64, key) {
+export function decryptMessage(ivBase64, cipherBase64, key, sender) {
     try {
         const iv = base64ToBytes(ivBase64);
         const cipherText = base64ToBytes(cipherBase64);
         const aesGcm = gcm(key, iv);
+        const aadBytes = strToBytes(sender);
 
-        const plainBytes = aesGcm.decrypt(cipherText);
+        const plainBytes = aesGcm.decrypt(cipherText, { AAD: aadBytes });
         return bytesToStr(plainBytes);
     } catch (e) {
         console.error("Decryption failed", e);

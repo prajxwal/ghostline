@@ -9,11 +9,12 @@ const SERVER_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://
 class SocketService {
     socket = null;
 
-    connect() {
+    connect(sessionId) {
         if (!this.socket) {
             this.socket = io(SERVER_URL, {
                 transports: ['websocket'],
                 reconnection: true,
+                auth: { sessionId }
             });
 
             this.socket.on('connect', () => {
