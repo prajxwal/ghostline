@@ -43,7 +43,7 @@ module.exports = (io) => {
 
         // We blindly relay the encrypted payload.
         // The server cannot read 'payload'.
-        socket.on('chat-message', (payload) => {
+        socket.on('chat-message', (payload, callback) => {
             const now = Date.now();
             if (now - socket.data.lastMessageTime > 1000) {
                 socket.data.messageCount = 0;
@@ -61,6 +61,17 @@ module.exports = (io) => {
             if (roomId) {
                 // Broadcast to everyone else in the room
                 socket.to(roomId).emit('chat-message', payload);
+                // Acknowledge sent to sender
+                if (typeof callback === 'function') callback({ status: 'sent' });
+            }
+        });
+
+        // Delivery receipt: recipient confirms they got the message
+        socket.on('msg-delivered', ({ msgId, to }) => {
+            const roomId = socket.data.roomId;
+            if (roomId) {
+                // Relay delivery confirmation to everyone else (sender will pick it up)
+                socket.to(roomId).emit('msg-delivered', { msgId });
             }
         });
 

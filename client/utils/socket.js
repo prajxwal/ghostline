@@ -57,8 +57,8 @@ class SocketService {
         this.socket?.emit('join-room', { roomId }, callback);
     }
 
-    sendMessage(encryptedPayload) {
-        this.socket?.emit('chat-message', encryptedPayload);
+    sendMessage(encryptedPayload, callback) {
+        this.socket?.emit('chat-message', encryptedPayload, callback);
     }
 
     setTyping(isTyping) {
@@ -95,6 +95,15 @@ class SocketService {
         this.socket?.off('user-joined');
         this.socket?.off('user-left');
         this.socket?.off('room-nuked');
+        this.socket?.off('msg-delivered');
+    }
+
+    sendDelivered(msgId) {
+        this.socket?.emit('msg-delivered', { msgId });
+    }
+
+    onDelivered(callback) {
+        this.socket?.on('msg-delivered', callback);
     }
 }
 

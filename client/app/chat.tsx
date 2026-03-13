@@ -99,16 +99,27 @@ export default function ChatScreen() {
             setSomeoneTyping(false);
             if (!cryptoKey) return;
 
-            const { iv, cipher, sender, timestamp } = encryptedPayload;
+            const { iv, cipher, sender, timestamp, msgId } = encryptedPayload;
             const dec = decryptMessage(iv, cipher, cryptoKey, sender);
 
             setMessages(prev => [...prev, {
-                id: Math.random().toString(),
+                id: msgId || Math.random().toString(),
                 text: dec,
                 sender,
                 timestamp,
                 isOwn: false
             }]);
+
+            // Send delivery confirmation back
+            if (msgId) {
+                socketService.sendDelivered(msgId);
+            }
+        });
+
+        socketService.onDelivered(({ msgId }) => {
+            setMessages(prev => prev.map(msg =>
+                msg.id === msgId ? { ...msg, status: 'delivered' } : msg
+            ));
         });
 
         socketService.onTyping(({ isTyping }) => {
@@ -140,6 +151,7 @@ export default function ChatScreen() {
 
         const plainText = inputText.trim();
         const ts = new Date().toISOString();
+        const msgId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
         const { iv, cipher } = encryptMessage(plainText, cryptoKey, alias);
 
@@ -147,18 +159,27 @@ export default function ChatScreen() {
             iv,
             cipher,
             sender: alias,
-            timestamp: ts
+            timestamp: ts,
+            msgId
         };
 
-        socketService.sendMessage(payload);
-
+        // Add message locally with 'sending' status
         setMessages(prev => [...prev, {
-            id: Math.random().toString(),
+            id: msgId,
             text: plainText,
             sender: alias,
             timestamp: ts,
-            isOwn: true
+            isOwn: true,
+            status: 'sending'
         }]);
+
+        socketService.sendMessage(payload, (ack) => {
+            if (ack?.status === 'sent') {
+                setMessages(prev => prev.map(msg =>
+                    msg.id === msgId ? { ...msg, status: 'sent' } : msg
+                ));
+            }
+        });
 
         setInputText('');
         handleTyping(false);
@@ -196,7 +217,19 @@ export default function ChatScreen() {
                         {item.isOwn ? '> ' : ''}{item.text}
                     </Text>
                 </View>
-                <Text style={styles.messageTime}>{formatTime(item.timestamp)}</Text>
+                <View style={styles.messageFooter}>
+                    <Text style={styles.messageTime}>{formatTime(item.timestamp)}</Text>
+                    {item.isOwn && (
+                        <Text style={[
+                            styles.receiptIndicator,
+                            item.status === 'delivered' && styles.receiptDelivered
+                        ]}>
+                            {item.status === 'delivered' ? ' ✓✓' :
+                             item.status === 'sent' ? ' ✓' :
+                             ' ⏳'}
+                        </Text>
+                    )}
+                </View>
             </View>
         );
     };
@@ -638,5 +671,18 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: 'bold',
         letterSpacing: 6,
+    },
+    messageFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    receiptIndicator: {
+        fontSize: 10,
+        color: theme.colors.textMuted,
+        fontFamily: theme.typography.fontFamilyMono,
+    },
+    receiptDelivered: {
+        color: theme.colors.accent,
     },
 });
