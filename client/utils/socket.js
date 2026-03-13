@@ -8,6 +8,12 @@ const SERVER_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://
 
 class SocketService {
     socket = null;
+    isConnected = false;
+    _statusCallback = null;
+
+    onStatusChange(callback) {
+        this._statusCallback = callback;
+    }
 
     connect(sessionId) {
         if (!this.socket) {
@@ -19,10 +25,19 @@ class SocketService {
 
             this.socket.on('connect', () => {
                 console.log('Connected to Ghostline server');
+                this.isConnected = true;
+                this._statusCallback?.(true);
             });
 
             this.socket.on('disconnect', () => {
                 console.log('Disconnected from server');
+                this.isConnected = false;
+                this._statusCallback?.(false);
+            });
+
+            this.socket.on('reconnect', () => {
+                this.isConnected = true;
+                this._statusCallback?.(true);
             });
         }
     }

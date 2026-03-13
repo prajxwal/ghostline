@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
     StyleSheet, Text, View, TextInput, TouchableOpacity,
-    KeyboardAvoidingView, Platform, FlatList, ActivityIndicator, Alert, Modal
+    KeyboardAvoidingView, Platform, FlatList, ActivityIndicator, Alert, Modal,
+    Vibration
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, router } from 'expo-router';
 import { theme } from '../styles/theme';
 import socketService from '../utils/socket';
@@ -20,6 +22,9 @@ export default function ChatScreen() {
     const [userCount, setUserCount] = useState(1);
     const [isTyping, setIsTyping] = useState(false);
     const [someoneTyping, setSomeoneTyping] = useState(false);
+    const [isOnline, setIsOnline] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [codeCopied, setCodeCopied] = useState(false);
 
     const typingTimeoutRef = useRef(null);
     const flatListRef = useRef(null);
@@ -49,6 +54,12 @@ export default function ChatScreen() {
 
         socketService.connect(sessionId);
 
+        // Track connection status
+        socketService.onStatusChange((connected) => {
+            setIsOnline(connected);
+        });
+        setIsOnline(socketService.isConnected);
+
         if (isCreator === '1') {
             socketService.createRoom(roomId, !!password, (res) => {
                 if (res?.error) {
@@ -57,7 +68,10 @@ export default function ChatScreen() {
                     return;
                 }
                 socketService.joinRoom(roomId, (joinRes) => {
-                    if (joinRes?.success) setUserCount(joinRes.userCount);
+                    if (joinRes?.success) {
+                        setUserCount(joinRes.userCount);
+                        setShowShareModal(true);
+                    }
                 });
             });
         } else {
@@ -196,6 +210,13 @@ export default function ChatScreen() {
         setShowAliasModal(false);
     };
 
+    const handleCopyCode = async () => {
+        await Clipboard.setStringAsync(String(roomId));
+        Vibration.vibrate(50);
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2000);
+    };
+
     if (!cryptoKey) {
         return (
             <View style={styles.loadingContainer}>
@@ -238,11 +259,44 @@ export default function ChatScreen() {
                 </KeyboardAvoidingView>
             </Modal>
 
-            <View style={styles.header}>
-                <View>
-                    <Text style={styles.roomCode}>TARGET_NODE: {roomId}</Text>
-                    <Text style={styles.userCount}>ACTIVE_CONNECTIONS: {userCount}</Text>
+            {/* Share Room Code Modal (shown after creation) */}
+            <Modal visible={showShareModal} animationType="fade" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>ROOM_CREATED</Text>
+                        <Text style={styles.modalSub}>Share this code with your contact. They need it to join.</Text>
+                        <View style={styles.shareCodeBox}>
+                            <Text style={styles.shareCodeText}>{roomId}</Text>
+                        </View>
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity style={styles.modalActionBtn} onPress={async () => {
+                                await Clipboard.setStringAsync(String(roomId));
+                                Vibration.vibrate(50);
+                                setShowShareModal(false);
+                                addSystemMessage(`CODE_COPIED: ${roomId}`);
+                            }}>
+                                <Text style={styles.modalBtnText}>[ COPY_CODE ]</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.modalActionBtn} onPress={() => setShowShareModal(false)}>
+                                <Text style={styles.modalBtnText}>[ ENTER_ROOM ]</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
                 </View>
+            </Modal>
+
+            <View style={styles.header}>
+                <TouchableOpacity onPress={handleCopyCode} activeOpacity={0.7}>
+                    <View style={styles.headerLeft}>
+                        <View style={styles.roomCodeRow}>
+                            <View style={[styles.statusDot, isOnline ? styles.statusOnline : styles.statusOffline]} />
+                            <Text style={styles.roomCode}>TARGET_NODE: {roomId}</Text>
+                        </View>
+                        <Text style={styles.userCount}>
+                            {codeCopied ? '> CODE_COPIED_TO_CLIPBOARD' : `ACTIVE_CONNECTIONS: ${userCount}`}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
                 <View style={styles.headerRight}>
                     {isCreator === '1' && (
                         <TouchableOpacity
@@ -540,5 +594,49 @@ const styles = StyleSheet.create({
     },
     nukeText: {
         color: '#ffaa00',
-    }
+    },
+    statusDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: 8,
+    },
+    statusOnline: {
+        backgroundColor: theme.colors.accent,
+        shadowColor: theme.colors.accent,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 4,
+    },
+    statusOffline: {
+        backgroundColor: theme.colors.danger,
+        shadowColor: theme.colors.danger,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 4,
+    },
+    headerLeft: {
+        flexShrink: 1,
+    },
+    roomCodeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    shareCodeBox: {
+        borderWidth: 1,
+        borderColor: theme.colors.accent,
+        borderStyle: 'dashed',
+        paddingVertical: 16,
+        paddingHorizontal: 24,
+        marginVertical: 20,
+        width: '100%',
+        alignItems: 'center',
+    },
+    shareCodeText: {
+        color: theme.colors.accentGlow,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 28,
+        fontWeight: 'bold',
+        letterSpacing: 6,
+    },
 });
