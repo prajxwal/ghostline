@@ -1,98 +1,188 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
+import { router } from 'expo-router';
+import { theme } from '../../styles/theme';
+import { generateAlias } from '../../utils/helpers';
+import socketService from '../../utils/socket';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function IndexScreen() {
+    const [joinCode, setJoinCode] = useState('');
+    const [joinPassword, setJoinPassword] = useState('');
+    const [createPassword, setCreatePassword] = useState('');
+    const [isCreating, setIsCreating] = useState(false);
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    const handleCreateRoom = async () => {
+        setIsCreating(true);
+        const roomId = generateAlias(3); // e.g., "alpha-bravo-charlie"
+        const sessionId = Date.now().toString();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+        socketService.connect(sessionId);
+        socketService.onStatusChange((connected) => {
+            if (connected && isCreating) {
+                setIsCreating(false);
+                router.push({
+                    pathname: '/chat',
+                    params: { roomId, password: createPassword, isCreator: '1', sessionId }
+                });
+            }
+        });
+    };
+
+    const handleJoinRoom = () => {
+        if (!joinCode.trim()) {
+            Alert.alert('ERR', 'Node address required');
+            return;
+        }
+
+        const sessionId = Date.now().toString();
+        router.push({
+            pathname: '/chat',
+            params: { roomId: joinCode.trim().toLowerCase(), password: joinPassword, isCreator: '0', sessionId }
+        });
+    };
+
+    return (
+        <KeyboardAvoidingView 
+            style={styles.container} 
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                <View style={styles.header}>
+                    <Text style={styles.ascii}>
+                        {`
+  ██████╗ ██╗  ██╗ ██████╗ ███████╗████████╗
+ ██╔════╝ ██║  ██║██╔═══██╗██╔════╝╚══██╔══╝
+ ██║  ███╗███████║██║   ██║███████╗   ██║   
+ ██║   ██║██╔══██║██║   ██║╚════██║   ██║   
+ ╚██████╔╝██║  ██║╚██████╔╝███████║   ██║   
+  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   
+                        `}
+                    </Text>
+                    <Text style={styles.subtitle}>SECURE P2P COMMUNICATIONS LINK</Text>
+                    <Text style={styles.warning}>[!] ZERO LOGGING. ZERO PERSISTENCE. BURN ON READ.</Text>
+                </View>
+
+                <View style={styles.panel}>
+                    <Text style={styles.panelTitle}>[ ESTABLISH_NODE ]</Text>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="ENTER_PASSPHRASE_OR_BLANK"
+                        placeholderTextColor={theme.colors.textMuted}
+                        value={createPassword}
+                        onChangeText={setCreatePassword}
+                        secureTextEntry
+                        autoCapitalize="none"
+                    />
+                    <TouchableOpacity style={styles.btn} onPress={handleCreateRoom} disabled={isCreating}>
+                        <Text style={styles.btnText}>{isCreating ? 'BOOTING...' : 'INITIATE_PROTOCOL'}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={[styles.panel, styles.panelSecondary]}>
+                    <Text style={styles.panelTitle}>[ CONNECT_TO_NODE ]</Text>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="TARGET_NODE_ADDRESS"
+                        placeholderTextColor={theme.colors.textMuted}
+                        value={joinCode}
+                        onChangeText={setJoinCode}
+                        autoCapitalize="none"
+                    />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="PASSPHRASE_IF_REQUIRED"
+                        placeholderTextColor={theme.colors.textMuted}
+                        value={joinPassword}
+                        onChangeText={setJoinPassword}
+                        secureTextEntry
+                        autoCapitalize="none"
+                        onSubmitEditing={handleJoinRoom}
+                    />
+                    <TouchableOpacity style={styles.btn} onPress={handleJoinRoom}>
+                        <Text style={styles.btnText}>ESTABLISH_HANDSHAKE</Text>
+                    </TouchableOpacity>
+                </View>
+                
+                {/* Spacer to prevent overlap with floating pill nav */}
+                <View style={{ height: 100 }} />
+            </ScrollView>
+        </KeyboardAvoidingView>
+    );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+    container: {
+        flex: 1,
+        backgroundColor: theme.colors.bgPrimary,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        padding: theme.spacing.lg,
+    },
+    header: {
+        alignItems: 'center',
+        marginBottom: theme.spacing.xl,
+    },
+    ascii: {
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 10,
+        textAlign: 'center',
+        marginBottom: theme.spacing.md,
+    },
+    subtitle: {
+        color: theme.colors.accentGlow,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 14,
+        fontWeight: 'bold',
+        letterSpacing: 2,
+        marginBottom: theme.spacing.sm,
+        textAlign: 'center',
+    },
+    warning: {
+        color: theme.colors.danger,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 10,
+        textAlign: 'center',
+    },
+    panel: {
+        backgroundColor: theme.colors.bgSecondary,
+        borderWidth: 1,
+        borderColor: theme.colors.accent,
+        padding: theme.spacing.lg,
+        marginBottom: theme.spacing.lg,
+    },
+    panelSecondary: {
+        borderColor: theme.colors.border,
+    },
+    panelTitle: {
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
+        marginBottom: theme.spacing.md,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        color: theme.colors.textPrimary,
+        fontFamily: theme.typography.fontFamilyMono,
+        padding: theme.spacing.md,
+        marginBottom: theme.spacing.md,
+        fontSize: 14,
+    },
+    btn: {
+        backgroundColor: theme.colors.bgCard,
+        borderWidth: 1,
+        borderColor: theme.colors.accent,
+        padding: theme.spacing.md,
+        alignItems: 'center',
+    },
+    btnText: {
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+    }
 });
