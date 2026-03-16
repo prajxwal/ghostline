@@ -17,7 +17,7 @@ export default function IndexScreen() {
         const sessionId = Date.now().toString();
 
         socketService.connect(sessionId);
-        socketService.onStatusChange((connected) => {
+        socketService.onStatusChange((connected: boolean) => {
             if (connected && isCreating) {
                 setIsCreating(false);
                 router.push({
