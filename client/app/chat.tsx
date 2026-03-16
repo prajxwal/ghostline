@@ -25,6 +25,7 @@ export default function ChatScreen() {
     const [isOnline, setIsOnline] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
     const [codeCopied, setCodeCopied] = useState(false);
+    const [replyTo, setReplyTo] = useState<any>(null);
 
     const typingTimeoutRef = useRef(null);
     const flatListRef = useRef(null);
@@ -102,9 +103,20 @@ export default function ChatScreen() {
             const { iv, cipher, sender, timestamp, msgId } = encryptedPayload;
             const dec = decryptMessage(iv, cipher, cryptoKey, sender);
 
+            let parsedObj;
+            try {
+                parsedObj = JSON.parse(dec);
+                if (typeof parsedObj !== 'object' || !parsedObj.text) {
+                    parsedObj = { text: dec }; 
+                }
+            } catch (e) {
+                parsedObj = { text: dec }; 
+            }
+
             setMessages(prev => [...prev, {
                 id: msgId || Math.random().toString(),
-                text: dec,
+                text: parsedObj.text,
+                replyTo: parsedObj.replyTo,
                 sender,
                 timestamp,
                 isOwn: false
@@ -153,7 +165,13 @@ export default function ChatScreen() {
         const ts = new Date().toISOString();
         const msgId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
-        const { iv, cipher } = encryptMessage(plainText, cryptoKey, alias);
+        const messageData = {
+            text: plainText,
+            replyTo: replyTo ? { sender: replyTo.sender, text: replyTo.text } : null
+        };
+        const stringifiedPlx = JSON.stringify(messageData);
+
+        const { iv, cipher } = encryptMessage(stringifiedPlx, cryptoKey, alias);
 
         const payload = {
             iv,
@@ -167,6 +185,7 @@ export default function ChatScreen() {
         setMessages(prev => [...prev, {
             id: msgId,
             text: plainText,
+            replyTo: messageData.replyTo,
             sender: alias,
             timestamp: ts,
             isOwn: true,
@@ -182,6 +201,7 @@ export default function ChatScreen() {
         });
 
         setInputText('');
+        setReplyTo(null);
         handleTyping(false);
     };
 
@@ -210,9 +230,26 @@ export default function ChatScreen() {
         }
 
         return (
-            <View style={[styles.messageWrapper, item.isOwn ? styles.messageOwnWrapper : {}]}>
+            <TouchableOpacity 
+                activeOpacity={0.8}
+                onLongPress={() => {
+                    Vibration.vibrate(50);
+                    setReplyTo({ 
+                        id: item.id, 
+                        text: item.text, 
+                        sender: item.isOwn ? 'You' : item.sender 
+                    });
+                }}
+                style={[styles.messageWrapper, item.isOwn ? styles.messageOwnWrapper : {}]}
+            >
                 {!item.isOwn && <Text style={styles.senderAlias}>&lt;{item.sender}&gt;</Text>}
                 <View style={[styles.messageBubble, item.isOwn ? styles.messageOwn : styles.messageOther]}>
+                    {item.replyTo && (
+                        <View style={styles.quoteBlock}>
+                            <Text style={styles.quoteSender}>{item.replyTo.sender}</Text>
+                            <Text style={styles.quoteText} numberOfLines={3}>{item.replyTo.text}</Text>
+                        </View>
+                    )}
                     <Text style={styles.messageText}>
                         {item.isOwn ? '> ' : ''}{item.text}
                     </Text>
@@ -230,7 +267,7 @@ export default function ChatScreen() {
                         </Text>
                     )}
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -376,6 +413,18 @@ export default function ChatScreen() {
             {someoneTyping && (
                 <View style={styles.typingIndicator}>
                     <Text style={styles.typingText}>Incoming transmission...</Text>
+                </View>
+            )}
+
+            {replyTo && (
+                <View style={styles.replyPreviewBanner}>
+                    <View style={styles.replyPreviewContent}>
+                        <Text style={styles.quoteSender}>Replying to {replyTo.sender}</Text>
+                        <Text style={styles.quoteText} numberOfLines={1}>{replyTo.text}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setReplyTo(null)} style={styles.cancelReplyBtn}>
+                        <Text style={styles.cancelReplyText}>[X]</Text>
+                    </TouchableOpacity>
                 </View>
             )}
 
@@ -684,5 +733,49 @@ const styles = StyleSheet.create({
     },
     receiptDelivered: {
         color: theme.colors.accent,
+    },
+    quoteBlock: {
+        backgroundColor: 'rgba(0,0,0,0.15)',
+        borderLeftWidth: 2,
+        borderLeftColor: theme.colors.accent,
+        padding: 6,
+        marginBottom: 6,
+        borderRadius: 4,
+    },
+    quoteSender: {
+        color: theme.colors.accent,
+        fontSize: 10,
+        fontWeight: 'bold',
+        marginBottom: 2,
+        fontFamily: theme.typography.fontFamilyMono,
+    },
+    quoteText: {
+        color: theme.colors.textMuted,
+        fontSize: 12,
+        fontFamily: theme.typography.fontFamilyMono,
+    },
+    replyPreviewBanner: {
+        flexDirection: 'row',
+        backgroundColor: theme.colors.bgCard,
+        padding: 8,
+        paddingHorizontal: 12,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border,
+        alignItems: 'center',
+    },
+    replyPreviewContent: {
+        flex: 1,
+        borderLeftWidth: 2,
+        borderLeftColor: theme.colors.accent,
+        paddingLeft: 8,
+    },
+    cancelReplyBtn: {
+        padding: 8,
+    },
+    cancelReplyText: {
+        color: theme.colors.danger,
+        fontWeight: 'bold',
+        fontSize: 14,
+        fontFamily: theme.typography.fontFamilyMono,
     },
 });
