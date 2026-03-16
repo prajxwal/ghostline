@@ -2,9 +2,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
     StyleSheet, Text, View, TextInput, TouchableOpacity,
     KeyboardAvoidingView, Platform, FlatList, ActivityIndicator, Alert, Modal,
-    Vibration
+    Vibration, Image
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useLocalSearchParams, router } from 'expo-router';
 import { theme } from '../styles/theme';
 import socketService from '../utils/socket';
@@ -26,6 +28,7 @@ export default function ChatScreen() {
     const [showShareModal, setShowShareModal] = useState(false);
     const [codeCopied, setCodeCopied] = useState(false);
     const [replyTo, setReplyTo] = useState<any>(null);
+    const [selectedImage, setSelectedImage] = useState<any>(null);
 
     const typingTimeoutRef = useRef(null);
     const flatListRef = useRef(null);
@@ -106,7 +109,7 @@ export default function ChatScreen() {
             let parsedObj;
             try {
                 parsedObj = JSON.parse(dec);
-                if (typeof parsedObj !== 'object' || !parsedObj.text) {
+                if (typeof parsedObj !== 'object' || (!parsedObj.text && !parsedObj.image)) {
                     parsedObj = { text: dec }; 
                 }
             } catch (e) {
@@ -117,6 +120,7 @@ export default function ChatScreen() {
                 id: msgId || Math.random().toString(),
                 text: parsedObj.text,
                 replyTo: parsedObj.replyTo,
+                image: parsedObj.image,
                 sender,
                 timestamp,
                 isOwn: false
@@ -158,8 +162,31 @@ export default function ChatScreen() {
         }]);
     };
 
+    const handlePickImage = async () => {
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            quality: 0.5,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            const asset = result.assets[0];
+            try {
+                // aggressively scale down to keep base64 payload size under control for websocket
+                const manipResult = await ImageManipulator.manipulateAsync(
+                    asset.uri,
+                    [{ resize: { width: Math.min(asset.width, 800) } }], 
+                    { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                );
+                setSelectedImage({ uri: manipResult.uri, base64: manipResult.base64 });
+            } catch(e) {
+                Alert.alert('ERR', 'Failed to compress image');
+            }
+        }
+    };
+
     const handleSend = () => {
-        if (!inputText.trim() || !cryptoKey) return;
+        if ((!inputText.trim() && !selectedImage) || !cryptoKey) return;
 
         const plainText = inputText.trim();
         const ts = new Date().toISOString();
@@ -167,7 +194,8 @@ export default function ChatScreen() {
 
         const messageData = {
             text: plainText,
-            replyTo: replyTo ? { sender: replyTo.sender, text: replyTo.text } : null
+            replyTo: replyTo ? { sender: replyTo.sender, text: replyTo.text } : null,
+            image: selectedImage ? selectedImage.base64 : null
         };
         const stringifiedPlx = JSON.stringify(messageData);
 
@@ -186,6 +214,7 @@ export default function ChatScreen() {
             id: msgId,
             text: plainText,
             replyTo: messageData.replyTo,
+            image: messageData.image,
             sender: alias,
             timestamp: ts,
             isOwn: true,
@@ -202,6 +231,7 @@ export default function ChatScreen() {
 
         setInputText('');
         setReplyTo(null);
+        setSelectedImage(null);
         handleTyping(false);
     };
 
@@ -250,9 +280,18 @@ export default function ChatScreen() {
                             <Text style={styles.quoteText} numberOfLines={3}>{item.replyTo.text}</Text>
                         </View>
                     )}
-                    <Text style={styles.messageText}>
-                        {item.isOwn ? '> ' : ''}{item.text}
-                    </Text>
+                    {item.image && (
+                        <Image 
+                            source={{ uri: `data:image/jpeg;base64,${item.image}` }} 
+                            style={[styles.messageImage, { opacity: item.status === 'sending' ? 0.7 : 1 }]} 
+                            resizeMode="cover"
+                        />
+                    )}
+                    {item.text ? (
+                        <Text style={styles.messageText}>
+                            {item.isOwn && item.text ? '> ' : ''}{item.text}
+                        </Text>
+                    ) : null}
                 </View>
                 <View style={styles.messageFooter}>
                     <Text style={styles.messageTime}>{formatTime(item.timestamp)}</Text>
@@ -428,7 +467,22 @@ export default function ChatScreen() {
                 </View>
             )}
 
+            {selectedImage && (
+                <View style={styles.replyPreviewBanner}>
+                    <View style={[styles.replyPreviewContent, { flexDirection: 'row', alignItems: 'center' }]}>
+                        <Image source={{ uri: selectedImage.uri }} style={styles.previewImageThumbnail} />
+                        <Text style={[styles.quoteText, { marginLeft: 10 }]}>Encrypted Attachment Ready</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setSelectedImage(null)} style={styles.cancelReplyBtn}>
+                        <Text style={styles.cancelReplyText}>[X]</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             <View style={styles.inputContainer}>
+                <TouchableOpacity onPress={handlePickImage} style={styles.attachBtn}>
+                    <Text style={styles.attachText}>[+]</Text>
+                </TouchableOpacity>
                 <Text style={styles.prompt}>~/&gt;</Text>
                 <TextInput
                     style={styles.input}
@@ -442,9 +496,9 @@ export default function ChatScreen() {
                     onSubmitEditing={handleSend}
                 />
                 <TouchableOpacity
-                    style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
+                    style={[styles.sendBtn, (!inputText.trim() && !selectedImage) && styles.sendBtnDisabled]}
                     onPress={handleSend}
-                    disabled={!inputText.trim()}
+                    disabled={!inputText.trim() && !selectedImage}
                 >
                     <Text style={styles.sendText}>EXEC</Text>
                 </TouchableOpacity>
@@ -778,4 +832,27 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: theme.typography.fontFamilyMono,
     },
+    attachBtn: {
+        paddingRight: 10,
+    },
+    attachText: {
+        color: theme.colors.accent,
+        fontFamily: theme.typography.fontFamilyMono,
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    messageImage: {
+        width: 220,
+        height: 220,
+        borderRadius: 4,
+        marginBottom: 6,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+    },
+    previewImageThumbnail: {
+        width: 40,
+        height: 40,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: theme.colors.accent,
+    }
 });
