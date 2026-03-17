@@ -1,9 +1,24 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ScrollView, Animated, LayoutAnimation, UIManager } from 'react-native';
 import { router } from 'expo-router';
 import { theme } from '../../styles/theme';
 import { generateAlias } from '../../utils/helpers';
 import socketService from '../../utils/socket';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const ASCII_ART = `
+  ██████╗ ██╗  ██╗ ██████╗ ███████╗████████╗
+ ██╔════╝ ██║  ██║██╔═══██╗██╔════╝╚══██╔══╝
+ ██║  ███╗███████║██║   ██║███████╗   ██║   
+ ██║   ██║██╔══██║██║   ██║╚════██║   ██║   
+ ╚██████╔╝██║  ██║╚██████╔╝███████║   ██║   
+  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   
+`;
+
+const GLITCH_CHARS = '!<>-_/[]{}—=+*^?#_010101';
 
 export default function IndexScreen() {
     const [joinCode, setJoinCode] = useState('');
@@ -11,9 +26,67 @@ export default function IndexScreen() {
     const [createPassword, setCreatePassword] = useState('');
     const [isCreating, setIsCreating] = useState(false);
 
+    const [isBooting, setIsBooting] = useState(true);
+    const [displayText, setDisplayText] = useState('');
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        let iteration = 0;
+        const totalIterations = 20;
+        
+        const interval = setInterval(() => {
+            setDisplayText((prev) => {
+                let text = '';
+                const settlingStart = 5; 
+                
+                for (let i = 0; i < ASCII_ART.length; i++) {
+                    const char = ASCII_ART[i];
+                    if (char === '\n' || char === ' ') {
+                        text += char;
+                        continue;
+                    }
+                    
+                    if (iteration < settlingStart) {
+                        text += GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+                    } else {
+                        const progress = (iteration - settlingStart) / (totalIterations - settlingStart);
+                        const charPosition = i / ASCII_ART.length;
+                        
+                        if (charPosition < progress + (Math.random() * 0.2 - 0.1)) {
+                            text += char;
+                        } else {
+                            text += GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+                        }
+                    }
+                }
+                return text;
+            });
+            
+            iteration++;
+            
+            if (iteration > totalIterations + 5) {
+                clearInterval(interval);
+                setDisplayText(ASCII_ART);
+                
+                LayoutAnimation.configureNext(
+                    LayoutAnimation.create(400, 'easeInEaseOut', 'opacity')
+                );
+                setIsBooting(false);
+                
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 500,
+                    useNativeDriver: true,
+                }).start();
+            }
+        }, 50);
+
+        return () => clearInterval(interval);
+    }, []);
+
     const handleCreateRoom = async () => {
         setIsCreating(true);
-        const roomId = generateAlias(3); // e.g., "alpha-bravo-charlie"
+        const roomId = generateAlias(); // e.g., "alpha-bravo-charlie"
         const sessionId = Date.now().toString();
 
         socketService.connect(sessionId);
@@ -49,62 +122,63 @@ export default function IndexScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                 <View style={styles.header}>
                     <Text style={styles.ascii}>
-                        {`
-  ██████╗ ██╗  ██╗ ██████╗ ███████╗████████╗
- ██╔════╝ ██║  ██║██╔═══██╗██╔════╝╚══██╔══╝
- ██║  ███╗███████║██║   ██║███████╗   ██║   
- ██║   ██║██╔══██║██║   ██║╚════██║   ██║   
- ╚██████╔╝██║  ██║╚██████╔╝███████║   ██║   
-  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   
-                        `}
+                        {isBooting ? displayText : ASCII_ART}
                     </Text>
-                    <Text style={styles.subtitle}>SECURE P2P COMMUNICATIONS LINK</Text>
-                    <Text style={styles.warning}>[!] ZERO LOGGING. ZERO PERSISTENCE. BURN ON READ.</Text>
+                    {!isBooting && (
+                        <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', width: '100%' }}>
+                            <Text style={styles.subtitle}>SECURE P2P COMMUNICATIONS LINK</Text>
+                            <Text style={styles.warning}>[!] ZERO LOGGING. ZERO PERSISTENCE. BURN ON READ.</Text>
+                        </Animated.View>
+                    )}
                 </View>
 
-                <View style={styles.panel}>
-                    <Text style={styles.panelTitle}>[ ESTABLISH_NODE ]</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="ENTER_PASSPHRASE_OR_BLANK"
-                        placeholderTextColor={theme.colors.textMuted}
-                        value={createPassword}
-                        onChangeText={setCreatePassword}
-                        secureTextEntry
-                        autoCapitalize="none"
-                    />
-                    <TouchableOpacity style={styles.btn} onPress={handleCreateRoom} disabled={isCreating}>
-                        <Text style={styles.btnText}>{isCreating ? 'BOOTING...' : 'INITIATE_PROTOCOL'}</Text>
-                    </TouchableOpacity>
-                </View>
+                {!isBooting && (
+                    <Animated.View style={{ opacity: fadeAnim, width: '100%' }}>
+                        <View style={styles.panel}>
+                            <Text style={styles.panelTitle}>[ ESTABLISH_NODE ]</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="ENTER_PASSPHRASE_OR_BLANK"
+                                placeholderTextColor={theme.colors.textMuted}
+                                value={createPassword}
+                                onChangeText={setCreatePassword}
+                                secureTextEntry
+                                autoCapitalize="none"
+                            />
+                            <TouchableOpacity style={styles.btn} onPress={handleCreateRoom} disabled={isCreating}>
+                                <Text style={styles.btnText}>{isCreating ? 'BOOTING...' : 'INITIATE_PROTOCOL'}</Text>
+                            </TouchableOpacity>
+                        </View>
 
-                <View style={[styles.panel, styles.panelSecondary]}>
-                    <Text style={styles.panelTitle}>[ CONNECT_TO_NODE ]</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="TARGET_NODE_ADDRESS"
-                        placeholderTextColor={theme.colors.textMuted}
-                        value={joinCode}
-                        onChangeText={setJoinCode}
-                        autoCapitalize="none"
-                    />
-                    <TextInput
-                        style={styles.input}
-                        placeholder="PASSPHRASE_IF_REQUIRED"
-                        placeholderTextColor={theme.colors.textMuted}
-                        value={joinPassword}
-                        onChangeText={setJoinPassword}
-                        secureTextEntry
-                        autoCapitalize="none"
-                        onSubmitEditing={handleJoinRoom}
-                    />
-                    <TouchableOpacity style={styles.btn} onPress={handleJoinRoom}>
-                        <Text style={styles.btnText}>ESTABLISH_HANDSHAKE</Text>
-                    </TouchableOpacity>
-                </View>
-                
-                {/* Spacer to prevent overlap with floating pill nav */}
-                <View style={{ height: 100 }} />
+                        <View style={[styles.panel, styles.panelSecondary]}>
+                            <Text style={styles.panelTitle}>[ CONNECT_TO_NODE ]</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="TARGET_NODE_ADDRESS"
+                                placeholderTextColor={theme.colors.textMuted}
+                                value={joinCode}
+                                onChangeText={setJoinCode}
+                                autoCapitalize="none"
+                            />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="PASSPHRASE_IF_REQUIRED"
+                                placeholderTextColor={theme.colors.textMuted}
+                                value={joinPassword}
+                                onChangeText={setJoinPassword}
+                                secureTextEntry
+                                autoCapitalize="none"
+                                onSubmitEditing={() => handleJoinRoom()}
+                            />
+                            <TouchableOpacity style={styles.btn} onPress={handleJoinRoom}>
+                                <Text style={styles.btnText}>ESTABLISH_HANDSHAKE</Text>
+                            </TouchableOpacity>
+                        </View>
+                        
+                        {/* Spacer to prevent overlap with floating pill nav */}
+                        <View style={{ height: 100 }} />
+                    </Animated.View>
+                )}
             </ScrollView>
         </KeyboardAvoidingView>
     );
