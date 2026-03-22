@@ -1,8 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { BlurView } from 'expo-blur';
-import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { View, StyleSheet, Text, Platform } from 'react-native';
 import { theme } from '../../styles/theme';
 
 export default function TabLayout() {
@@ -14,11 +12,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: theme.colors.textMuted,
         tabBarStyle: styles.tabBar,
         tabBarBackground: () => (
-          Platform.OS === 'ios' ? (
-            <BlurView tint="dark" intensity={80} style={StyleSheet.absoluteFill} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(5, 5, 5, 0.9)' }]} />
-          )
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.bgPrimary }]} />
         ),
         tabBarShowLabel: false,
       }}>
@@ -26,14 +20,22 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ focused, color }) => (
+            <Text style={[styles.tabBarText, { color }]}>
+              {focused ? '[ HOME ]' : '  HOME  '}
+            </Text>
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
+          tabBarIcon: ({ focused, color }) => (
+            <Text style={[styles.tabBarText, { color }]}>
+              {focused ? '[ SYS_CFG ]' : '  SYS_CFG  '}
+            </Text>
+          ),
         }}
       />
     </Tabs>
@@ -43,22 +45,21 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 30,
-    left: 60,
-    right: 60,
-    height: 60,
-    borderRadius: 30,
-    borderTopWidth: 0,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    elevation: 10,
-    shadowColor: theme.colors.accent,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 84 : 64, // Accommodate safe area nicely by default
+    backgroundColor: theme.colors.bgPrimary,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.accent, // Neon solid line on top
+    justifyContent: 'center',
+    paddingBottom: Platform.OS === 'ios' ? 20 : 0, 
+  },
+  tabBarText: {
+    fontFamily: theme.typography.fontFamilyMono,
+    fontSize: 14,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    textAlign: 'center',
   }
 });
