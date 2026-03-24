@@ -7,19 +7,70 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, router } from 'expo-router';
 import { theme } from '../styles/theme';
 import socketService from '../utils/socket';
 import { generateAlias, formatTime } from '../utils/helpers';
 import { deriveKey, encryptMessage, decryptMessage } from '../utils/crypto';
 
+const GLITCH_CHARS = '!<>-_/[]{}—=+*^?#_010101';
+
+const DecryptText = ({ text, isOwn }: { text: string, isOwn: boolean }) => {
+    const [displayText, setDisplayText] = useState(isOwn ? text : '');
+    
+    useEffect(() => {
+        if (isOwn || !text) {
+            setDisplayText(text);
+            return;
+        }
+
+        let iteration = 0;
+        const totalIterations = 15; 
+        
+        const interval = setInterval(() => {
+            setDisplayText((prev: string) => {
+                let current = '';
+                for (let i = 0; i < text.length; i++) {
+                    const char = text[i];
+                    if (char === ' ' || char === '\n') {
+                        current += char;
+                        continue;
+                    }
+                    const progress = iteration / totalIterations;
+                    const charPosition = i / text.length;
+                    
+                    if (charPosition < progress) {
+                        current += char;
+                    } else {
+                        current += GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)];
+                    }
+                }
+                return current;
+            });
+            
+            iteration++;
+            if (iteration > totalIterations + 3) {
+                clearInterval(interval);
+                setDisplayText(text);
+            }
+        }, 40);
+
+        return () => clearInterval(interval);
+    }, [text, isOwn]);
+
+    return (
+        <Text style={styles.messageText}>
+            {isOwn && text ? '> ' : ''}{displayText}
+        </Text>
+    );
+};
+
 export default function ChatScreen() {
     const { roomId, password, isCreator, sessionId } = useLocalSearchParams();
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
     const [alias, setAlias] = useState('');
-    const [tempAlias, setTempAlias] = useState('');
-    const [showAliasModal, setShowAliasModal] = useState(true);
     const [cryptoKey, setCryptoKey] = useState(null);
     const [userCount, setUserCount] = useState(1);
     const [isTyping, setIsTyping] = useState(false);
@@ -34,6 +85,22 @@ export default function ChatScreen() {
     const flatListRef = useRef(null);
 
     useEffect(() => {
+        const loadIdentity = async () => {
+            try {
+                const saved = await AsyncStorage.getItem('ghostline_alias');
+                if (saved) {
+                    setAlias(saved);
+                } else {
+                    const generated = generateAlias();
+                    setAlias(generated);
+                    await AsyncStorage.setItem('ghostline_alias', generated);
+                }
+            } catch (e) {
+                setAlias(generateAlias());
+            }
+        };
+        loadIdentity();
+
         const setupKey = async () => {
             // Give UI a moment to show loading state before blocking thread
             await new Promise(resolve => setTimeout(resolve, 10));
@@ -288,9 +355,7 @@ export default function ChatScreen() {
                         />
                     )}
                     {item.text ? (
-                        <Text style={styles.messageText}>
-                            {item.isOwn && item.text ? '> ' : ''}{item.text}
-                        </Text>
+                        <DecryptText text={item.text} isOwn={item.isOwn} />
                     ) : null}
                 </View>
                 <View style={styles.messageFooter}>
@@ -308,15 +373,6 @@ export default function ChatScreen() {
                 </View>
             </TouchableOpacity>
         );
-    };
-
-    const handleSetAlias = () => {
-        if (tempAlias.trim().length > 0) {
-            setAlias(tempAlias.trim());
-        } else {
-            setAlias(generateAlias());
-        }
-        setShowAliasModal(false);
     };
 
     const handleCopyCode = async () => {
@@ -341,33 +397,6 @@ export default function ChatScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-            <Modal visible={showAliasModal} animationType="fade" transparent>
-                <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>IDENTIFY_YOURSELF</Text>
-                        <Text style={styles.modalSub}>Leave blank for random assignment.</Text>
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="anon_"
-                            placeholderTextColor={theme.colors.textMuted}
-                            value={tempAlias}
-                            onChangeText={setTempAlias}
-                            autoFocus
-                            maxLength={15}
-                            onSubmitEditing={handleSetAlias}
-                        />
-                        <View style={styles.modalActions}>
-                            <TouchableOpacity style={styles.modalActionBtn} onPress={() => router.replace('/')}>
-                                <Text style={styles.leaveText}>[ ABORT ]</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.modalActionBtn} onPress={handleSetAlias}>
-                                <Text style={styles.modalBtnText}>[ ENTER_NODE ]</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </KeyboardAvoidingView>
-            </Modal>
-
             {/* Share Room Code Modal (shown after creation) */}
             <Modal visible={showShareModal} animationType="fade" transparent>
                 <View style={styles.modalOverlay}>
@@ -401,6 +430,7 @@ export default function ChatScreen() {
                             <View style={[styles.statusDot, isOnline ? styles.statusOnline : styles.statusOffline]} />
                             <Text style={styles.roomCode}>TARGET_NODE: {roomId}</Text>
                         </View>
+                        {!codeCopied && <Text style={styles.copyHint}>[ TAP_TO_COPY_AND_SHARE ]</Text>}
                         <Text style={styles.userCount}>
                             {codeCopied ? '> CODE_COPIED_TO_CLIPBOARD' : `ACTIVE_CONNECTIONS: ${userCount}`}
                         </Text>
@@ -537,6 +567,12 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: theme.colors.accentGlow,
         fontFamily: theme.typography.fontFamilyMono,
+    },
+    copyHint: {
+        fontSize: 10,
+        color: theme.colors.textMuted,
+        fontFamily: theme.typography.fontFamilyMono,
+        marginTop: 2,
     },
     userCount: {
         fontSize: 12,
