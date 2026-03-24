@@ -13,6 +13,7 @@ import { theme } from '../styles/theme';
 import socketService from '../utils/socket';
 import { generateAlias, formatTime } from '../utils/helpers';
 import { deriveKey, encryptMessage, decryptMessage } from '../utils/crypto';
+import BossModeTerminal from '../components/BossModeTerminal';
 
 const GLITCH_CHARS = '!<>-_/[]{}—=+*^?#_010101';
 
@@ -80,6 +81,7 @@ export default function ChatScreen() {
     const [codeCopied, setCodeCopied] = useState(false);
     const [replyTo, setReplyTo] = useState<any>(null);
     const [selectedImage, setSelectedImage] = useState<any>(null);
+    const [isBossMode, setIsBossMode] = useState(false);
 
     const typingTimeoutRef = useRef(null);
     const flatListRef = useRef(null);
@@ -424,7 +426,15 @@ export default function ChatScreen() {
             </Modal>
 
             <View style={styles.header}>
-                <TouchableOpacity onPress={handleCopyCode} activeOpacity={0.7}>
+                <TouchableOpacity 
+                    onPress={handleCopyCode} 
+                    onLongPress={() => {
+                        Vibration.vibrate(100);
+                        setIsBossMode(true);
+                    }}
+                    delayLongPress={800} // Require holding for 800ms
+                    activeOpacity={0.7}
+                >
                     <View style={styles.headerLeft}>
                         <View style={styles.roomCodeRow}>
                             <View style={[styles.statusDot, isOnline ? styles.statusOnline : styles.statusOffline]} />
@@ -533,6 +543,8 @@ export default function ChatScreen() {
                     <Text style={styles.sendText}>EXEC</Text>
                 </TouchableOpacity>
             </View>
+
+            {isBossMode && <BossModeTerminal onExit={() => setIsBossMode(false)} />}
         </KeyboardAvoidingView>
     );
 }
